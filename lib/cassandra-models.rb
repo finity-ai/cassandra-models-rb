@@ -1,4 +1,4 @@
-module Paper
+module Cassandra
   module Models
     # Your code goes here...
     class Base

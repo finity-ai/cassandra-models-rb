@@ -1,4 +1,4 @@
 source "http://rubygems.org"
 
-# Specify your gem's dependencies in paper-models.gemspec
+# Specify your gem's dependencies in cassandra-models.gemspec
 gemspec
