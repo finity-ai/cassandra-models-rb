@@ -20,7 +20,7 @@ module Cassandra
         @data = data
         @new_record = true
       end
-      
+
       class << self
 
         def cfname name
@@ -44,7 +44,7 @@ module Cassandra
               @data[name.to_s]
             end
           end
-          
+
           define_method "#{name.to_s}=".to_sym do |val|
             if opts[:compound]
               @data[name.to_s] = val
@@ -60,26 +60,54 @@ module Cassandra
 
         def indexed_field name, opts={}
           field name, opts
-          
+
           define_singleton_method "find_by_#{name.to_s}" do |key|
             keys = @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
             q = "SELECT #{keys} FROM #{@cfname} WHERE #{name.to_s}=?"
-            puts "query = #{q}"
             res = @dbh.execute(q, [key])
 
+            data = clean_data res.fetch_hash
 
-            self.new res.fetch_hash
+            if data.empty?
+              return nil
+            else
+              puts "res = #{data.inspect}"
+              return self.new data
+            end
           end
         end
 
-        def find(key)
+        def find_by_id(key)
           keys = @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
           q = "SELECT #{keys} FROM #{@cfname} WHERE KEY=?"
-          puts "query = #{q}"
           res = @dbh.execute(q, [key])
-          
-          self.new res.fetch_hash
+
+          data = clean_data res.fetch_hash
+
+          if data.empty?
+            return nil
+          else
+            return self.new data
+          end
         end
+
+        private
+
+          def clean_data (data)
+            return data.merge(data) { |key, value|
+              puts "value_class = #{key} || #{value.class} || #{value}"
+
+              if value.blank?
+                value
+              elsif value.kind_of? SimpleUUID::UUID
+                value.to_guid
+              elsif value.is_a?(String) && value.include?("\0")
+                CassandraCQL::Types::DateType.cast(value)
+              else
+                value
+              end
+            }
+          end
 
       end # class << self
     end
