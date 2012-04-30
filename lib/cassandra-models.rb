@@ -1,3 +1,10 @@
+class Object
+  def define_singleton_method name, &body
+    singleton_class = class << self; self; end
+    singleton_class.send(:define_method, name, &body)
+  end
+end
+
 module Cassandra
   module Models
     # Your code goes here...
