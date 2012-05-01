@@ -13,11 +13,11 @@ module Cassandra
       @fields = {}
 
       def self.init(dbh)
-        @dbh = dbh
+        @@dbh = dbh
       end
 
       def self.dbh
-        @dbh
+        @@dbh
       end
 
       attr_accessor :new_record
@@ -71,7 +71,7 @@ module Cassandra
           define_singleton_method "find_by_#{name.to_s}" do |key|
             keys = @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
             q = "SELECT #{keys} FROM #{@cfname} WHERE #{name.to_s}=?"
-            res = @dbh.execute(q, [key])
+            res = dbh.execute(q, [key])
 
             data = clean_data res.fetch_hash
 
@@ -87,7 +87,7 @@ module Cassandra
         def find_by_id(key)
           keys = @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
           q = "SELECT #{keys} FROM #{@cfname} WHERE KEY=?"
-          res = @dbh.execute(q, [key])
+          res = dbh.execute(q, [key])
 
           data = clean_data res.fetch_hash
 
