@@ -34,6 +34,10 @@ module Cassandra
           @cfname = name.to_s
         end
 
+        def get_cfname
+          @cfname
+        end
+
         def field name, opts={}
 
           puts "creating field #{name}"
