@@ -45,27 +45,11 @@ module Cassandra
           @fields[name] = opts
 
           define_method name do
-            if opts[:compound]
-              begin
-                JSON.parse @data[name.to_s]
-              rescue Exception => e
-                @data[name.to_s]
-              end
-            else
-              @data[name.to_s]
-            end
+            @data[name.to_s]
           end
 
           define_method "#{name.to_s}=".to_sym do |val|
-            if opts[:compound]
-              @data[name.to_s] = val
-            else
-              begin
-                @data[name.to_s] = val.to_json
-              rescue Exception => e
-                @data[name.to_s] = val
-              end
-            end
+            @data[name.to_s] = val
           end
         end
 
@@ -92,8 +76,9 @@ module Cassandra
           keys = @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
           q = "SELECT #{keys} FROM #{@cfname} WHERE KEY=?"
           res = dbh.execute(q, [key])
+          raw_data = res.fetch_hash
 
-          data = clean_data res.fetch_hash
+          data = clean_data raw_data
 
           if data.empty?
             return nil
@@ -104,21 +89,33 @@ module Cassandra
 
         private
 
-          def clean_data (data)
-            return data.merge(data) { |key, value|
-              puts "value_class = #{key} || #{value.class} || #{value}"
-
-              if value.blank?
-                value
-              elsif value.kind_of? SimpleUUID::UUID
-                value.to_guid
-              elsif value.is_a?(String) && value.include?("\0")
-                CassandraCQL::Types::DateType.cast(value)
-              else
+        def clean_data (data)
+          return data.merge(data) { |key, value|
+            if value.blank?
+              # no value is just returned as it otherwise can create errors
+              value
+            elsif value.kind_of? SimpleUUID::UUID
+              # it is a uuid
+              value.to_guid
+            elsif value.is_a?(String) && value.count("\0") == 2
+              # it is a date
+              CassandraCQL::Types::DateType.cast(value)
+            elsif value.is_a?(String) && value.count("\0") == 1
+              # it is a boolean
+              CassandraCQL::Types::BooleanType.cast(value)
+            elsif value.is_a?(String) && value.include?('{') && value.include?('}')
+              # it is a json data string
+              begin
+                JSON.parse value
+              rescue Exception => e
                 value
               end
-            }
-          end
+            else
+              # okay, no clue so just return it
+              value
+            end
+          }
+        end
 
       end # class << self
     end
