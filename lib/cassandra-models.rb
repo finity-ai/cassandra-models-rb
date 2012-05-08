@@ -80,7 +80,10 @@ module Cassandra
         
         def create(row)
           unless row.nil?
-            data = Hash[row.to_hash.select{|k, v| @fields.keys.include? k.to_sym}.map{|k, v| [k, type_cast(k, v)]}]
+            row_data = row.to_hash.select{|k, v| @fields.keys.include? k.to_sym}
+            return if row_data.empty? # in this case only KEY was present
+            
+            data = Hash[row_data.map{|k, v| [k, type_cast(k, v)]}]
             self.new data
           end
         end
