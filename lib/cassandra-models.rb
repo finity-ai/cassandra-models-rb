@@ -7,7 +7,6 @@ end
 
 module Cassandra
   module Models
-    # Your code goes here...
     class Base
 
       @fields = {}
@@ -20,12 +19,10 @@ module Cassandra
         @@dbh
       end
 
-      attr_accessor :new_record
       attr_accessor :data
 
       def initialize(data={})
         @data = data
-        @new_record = true
       end
 
       class << self
@@ -39,8 +36,6 @@ module Cassandra
         end
 
         def field name, opts={}
-
-          puts "creating field #{name}"
           @fields ||= {}
           @fields[name] = opts
 
@@ -56,65 +51,53 @@ module Cassandra
         def indexed_field name, opts={}
           field name, opts
 
-          define_singleton_method "find_by_#{name.to_s}" do |key|
-            keys = @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
+          define_singleton_method "find_by_#{name.to_s}" do |value|
+            res = []
             q = "SELECT #{keys} FROM #{@cfname} WHERE #{name.to_s}=?"
-            res = dbh.execute(q, [key])
-
-            data = clean_data res.fetch_hash
-
-            if data.empty?
-              return nil
-            else
-              puts "res = #{data.inspect}"
-              return self.new data
+            dbh.execute(q, [value]).fetch do |row|
+              res << create(row)
             end
+            
+            res
           end
         end
 
-        def find_by_id(key)
-          keys = @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
+        def find_by_id(value)
           q = "SELECT #{keys} FROM #{@cfname} WHERE KEY=?"
-          res = dbh.execute(q, [key])
-          raw_data = res.fetch_hash
-
-          data = clean_data raw_data
-
-          if data.empty?
-            return nil
-          else
-            return self.new data
-          end
+          row = dbh.execute(q, [value]).fetch_row
+          
+          create(row) # TODO raise exception if not found
         end
 
         private
-
-        def clean_data (data)
-          return data.merge(data) { |key, value|
-            if value.blank?
-              # no value is just returned as it otherwise can create errors
-              value
-            elsif value.kind_of? SimpleUUID::UUID
-              # it is a uuid
-              value.to_guid
-            elsif value.is_a?(String) && value.count("\0") == 2
-              # it is a date
-              CassandraCQL::Types::DateType.cast(value)
-            elsif value.is_a?(String) && value.count("\0") == 1
-              # it is a boolean
-              CassandraCQL::Types::BooleanType.cast(value)
-            elsif value.is_a?(String) && value.include?('{') && value.include?('}')
-              # it is a json data string
-              begin
-                JSON.parse value
-              rescue Exception => e
-                value
-              end
-            else
-              # okay, no clue so just return it
-              value
-            end
-          }
+        
+        def keys
+          @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
+        end
+        
+        def create(row)
+          unless row.nil?
+            data = Hash[row.to_hash.select{|k, v| @fields.keys.include? k.to_sym}.map{|k, v| [k, type_cast(k, v)]}]
+            self.new data
+          end
+        end
+        
+        def type_cast(key, value)
+          return if value.nil?
+          
+          type = @fields[key.to_sym][:type] || (value.kind_of?(CassandraCQL::UUID) ? :uuid : :string)
+          case type
+          when :uuid
+            value.to_guid
+          when :boolean
+            CassandraCQL::Types::BooleanType.cast(value)
+          when :date
+            CassandraCQL::Types::DateType.cast(value)
+          when :compound
+            JSON.parse value
+          else
+            value
+          end
         end
 
       end # class << self
