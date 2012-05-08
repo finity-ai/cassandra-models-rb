@@ -7,6 +7,9 @@ end
 
 module Cassandra
   module Models
+    class RecordNotFound < StandardError
+    end
+    
     class Base
 
       @fields = {}
@@ -66,7 +69,7 @@ module Cassandra
           q = "SELECT #{keys} FROM #{@cfname} WHERE KEY=?"
           row = dbh.execute(q, [value]).fetch_row
           
-          create(row) # TODO raise exception if not found
+          create(row) || (raise RecordNotFound.new)
         end
 
         private
