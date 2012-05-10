@@ -9,7 +9,10 @@ module Cassandra
   module Models
     class RecordNotFound < StandardError
     end
-    
+
+    class ValueNotFound < StandardError
+    end
+
     class Base
 
       @fields = {}
@@ -25,7 +28,15 @@ module Cassandra
       attr_accessor :data
 
       def initialize(data={})
-        @data = data
+        @data = validate_data data
+      end
+
+      def validate_data data
+        self.methods.select{|method| method =~ /^validate_field_/}.each do |method|
+          self.send method, data
+        end
+
+        return data
       end
 
       class << self
@@ -49,6 +60,11 @@ module Cassandra
           define_method "#{name.to_s}=".to_sym do |val|
             @data[name.to_s] = val
           end
+
+          define_method "validate_field_#{name.to_s}".to_sym do |data|
+            # if the field is required and is nil
+            raise ValueNotFound.new if opts[:required] && data[name.to_s].nil?
+          end
         end
 
         def indexed_field name, opts={}
@@ -60,7 +76,7 @@ module Cassandra
             dbh.execute(q, [value]).fetch do |row|
               res << create(row)
             end
-            
+
             res
           end
         end
@@ -68,29 +84,29 @@ module Cassandra
         def find_by_id(value)
           q = "SELECT #{keys} FROM #{@cfname} WHERE KEY=?"
           row = dbh.execute(q, [value]).fetch_row
-          
+
           create(row) || (raise RecordNotFound.new)
         end
 
         private
-        
+
         def keys
           @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
         end
-        
+
         def create(row)
           unless row.nil?
             row_data = row.to_hash.select{|k, v| @fields.keys.include? k.to_sym}
             return if row_data.empty? # in this case only KEY was present
-            
+
             data = Hash[row_data.map{|k, v| [k, type_cast(k, v)]}]
             self.new data
           end
         end
-        
+
         def type_cast(key, value)
           return if value.nil?
-          
+
           type = @fields[key.to_sym][:type] || (value.kind_of?(CassandraCQL::UUID) ? :uuid : :string)
           case type
           when :uuid
