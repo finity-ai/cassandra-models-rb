@@ -72,7 +72,7 @@ module Cassandra
 
           define_singleton_method "find_by_#{name.to_s}" do |value|
             res = []
-            q = "SELECT #{keys} FROM #{@cfname} WHERE #{name.to_s}=?"
+            q = "SELECT #{keys} FROM #{@cfname} WHERE #{name.to_s}=? USING CONSISTENCY QUORUM"
             dbh.execute(q, [value]).fetch do |row|
               res << create(row)
             end
@@ -82,7 +82,7 @@ module Cassandra
         end
 
         def find_by_id(value)
-          q = "SELECT #{keys} FROM #{@cfname} WHERE KEY=?"
+          q = "SELECT #{keys} FROM #{@cfname} WHERE KEY=? USING CONSISTENCY QUORUM"
           row = dbh.execute(q, [value]).fetch_row
 
           create(row) || (raise RecordNotFound.new)
