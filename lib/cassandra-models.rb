@@ -13,6 +13,9 @@ module Cassandra
     class ValueNotFound < StandardError
     end
 
+    class InvalidRequest < StandardError
+    end
+
     class Base
 
       @fields = {}
@@ -71,6 +74,8 @@ module Cassandra
           field name, opts
 
           define_singleton_method "find_by_#{name.to_s}" do |value|
+            raise InvalidRequest.new if value.nil? || value.empty?
+
             res = []
             q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE #{name.to_s}=?"
             dbh.execute(q, [value]).fetch do |row|
@@ -82,6 +87,8 @@ module Cassandra
         end
 
         def find_by_id(value)
+          raise InvalidRequest.new if value.nil? || value.empty?
+
           q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE KEY=?"
           row = dbh.execute(q, [value]).fetch_row
 
