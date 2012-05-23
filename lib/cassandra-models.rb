@@ -104,11 +104,15 @@ module Cassandra
         def create(row)
           unless row.nil?
             row_data = row.to_hash.select{|k, v| @fields.keys.include? k.to_sym}
-            return if row_data.empty? # in this case only KEY was present
+            return if is_tombstone?(row_data)
 
             data = Hash[row_data.map{|k, v| [k, type_cast(k, v)]}]
             self.new data
           end
+        end
+        
+        def is_tombstone?(data)
+          data.empty? || data.all?{|k, v| v.nil?}
         end
 
         def type_cast(key, value)
