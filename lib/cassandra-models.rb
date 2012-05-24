@@ -76,23 +76,31 @@ module Cassandra
           define_singleton_method "find_by_#{name.to_s}" do |value|
             raise InvalidRequest.new if value.nil? || value.empty?
 
-            res = []
-            q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE #{name.to_s}=?"
-            dbh.execute(q, [value]).fetch do |row|
-              res << create(row)
-            end
+            begin
+              res = []
+              q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE #{name.to_s}=?"
+              dbh.execute(q, [value]).fetch do |row|
+                res << create(row)
+              end
 
-            res
+              res
+            rescue CassandraCQL::Error::InvalidRequestException
+              raise InvalidRequest.new
+            end
           end
         end
 
         def find_by_id(value)
           raise InvalidRequest.new if value.nil? || value.empty?
 
-          q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE KEY=?"
-          row = dbh.execute(q, [value]).fetch_row
-
-          create(row) || (raise RecordNotFound.new)
+          begin
+            q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE KEY=?"
+            row = dbh.execute(q, [value]).fetch_row
+  
+            create(row) || (raise RecordNotFound.new)
+          rescue CassandraCQL::Error::InvalidRequestException
+            raise InvalidRequest.new
+          end
         end
 
         private
