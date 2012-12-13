@@ -130,6 +130,8 @@ module Cassandra
           case type
           when :uuid
             value.to_guid
+          when :timeuuid
+            CassandraCQL::Types::TimeUUIDType.cast(value).to_guid
           when :boolean
             CassandraCQL::Types::BooleanType.cast(value)
           when :date

@@ -46,6 +46,7 @@ Types:
 * compound (a compound is a string in the shape of JSON data, compound will turn that data into a Ruby Hash)
 * data
 * uuid (this type is detected automatically)
+* timeuuid
 * string (this is the default type)
 
 Find methods:
