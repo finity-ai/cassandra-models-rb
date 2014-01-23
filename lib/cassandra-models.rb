@@ -83,9 +83,9 @@ module Cassandra
               res = []
               q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE #{name.to_s}=?"
               dbh.execute(q, [value]).fetch do |row|
-                res << create(row)
+                assert(value, 'KEY', row) {dbh.reset!}
                 
-                raise InvalidResponse.new("invalid cql response, #{name.to_s}: #{value}, response: #{res.last}") if value != type_cast(name, row[name.to_s])
+                res << create(row)
               end
 
               res
@@ -102,11 +102,9 @@ module Cassandra
             q = "SELECT KEY,#{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE KEY=?"
             row = dbh.execute(q, [value]).fetch_row
   
-            res = create(row) || (raise RecordNotFound.new)
-            
-            raise InvalidResponse.new("invalid cql response, key: #{value}, response: #{res}") if value != type_cast('KEY', row['KEY'])
-            
-            res
+            assert(value, 'KEY', row) {dbh.reset!}
+
+            create(row) || (raise RecordNotFound.new)
           rescue CassandraCQL::Error::InvalidRequestException
             raise InvalidRequest.new
           end
@@ -125,6 +123,14 @@ module Cassandra
 
             data = Hash[row_data.map{|k, v| [k, type_cast(k, v)]}]
             self.new data
+          end
+        end
+        
+        def assert(value, name, row, &body)
+          if value != type_cast(name, row[name.to_s])
+            yield body
+            
+            raise InvalidResponse.new("invalid cql response, #{name.to_s}: #{value}, response: #{row.inspect}")
           end
         end
         
