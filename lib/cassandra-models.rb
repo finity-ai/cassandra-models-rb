@@ -15,6 +15,9 @@ module Cassandra
 
     class InvalidRequest < StandardError
     end
+    
+    class InvalidResponse < StandardError
+    end
 
     class Base
 
@@ -81,6 +84,8 @@ module Cassandra
               q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE #{name.to_s}=?"
               dbh.execute(q, [value]).fetch do |row|
                 res << create(row)
+                
+                raise InvalidResponse.new("invalid cql response, #{name.to_s}: #{value}, response: #{res.last}") if value != type_cast(name, row[name.to_s])
               end
 
               res
@@ -94,10 +99,14 @@ module Cassandra
           raise InvalidRequest.new if value.nil? || value.empty?
 
           begin
-            q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE KEY=?"
+            q = "SELECT KEY,#{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE KEY=?"
             row = dbh.execute(q, [value]).fetch_row
   
-            create(row) || (raise RecordNotFound.new)
+            res = create(row) || (raise RecordNotFound.new)
+            
+            raise InvalidResponse.new("invalid cql response, key: #{value}, response: #{res}") if value != type_cast('KEY', row['KEY'])
+            
+            res
           rescue CassandraCQL::Error::InvalidRequestException
             raise InvalidRequest.new
           end
@@ -126,7 +135,9 @@ module Cassandra
         def type_cast(key, value)
           return if value.nil?
 
-          type = @fields[key.to_sym][:type] || (value.kind_of?(CassandraCQL::UUID) ? :uuid : :string)
+          type = @fields[key.to_sym][:type] if @fields.keys.include? key.to_sym
+          type ||= (value.kind_of?(CassandraCQL::UUID) ? :uuid : :string)
+          
           case type
           when :uuid
             value.to_guid
