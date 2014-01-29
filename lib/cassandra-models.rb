@@ -71,6 +71,13 @@ module Cassandra
             # if the field is required and is nil
             raise ValueNotFound.new if opts[:required] && data[name.to_s].nil?
           end
+          
+          if opts[:key]
+            define_singleton_method "key_type".to_sym do
+              # if the field is required and is nil
+              opts[:type] || :uuid
+            end
+          end
         end
 
         def indexed_field name, opts={}
@@ -83,7 +90,7 @@ module Cassandra
               res = []
               q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE #{name.to_s}=?"
               dbh.execute(q, [value]).fetch do |row|
-                assert(value, 'KEY', row) {dbh.reset!}
+                assert(value, name, row) {dbh.reset!}
                 
                 res << create(row)
               end
@@ -141,8 +148,11 @@ module Cassandra
         def type_cast(key, value)
           return if value.nil?
 
-          type = @fields[key.to_sym][:type] if @fields.keys.include? key.to_sym
-          type ||= (value.kind_of?(CassandraCQL::UUID) ? :uuid : :string)
+          if key == 'KEY'
+            type = key_type
+          else
+            type = @fields[key.to_sym][:type] || (value.kind_of?(CassandraCQL::UUID) ? :uuid : :string)
+          end
           
           case type
           when :uuid
