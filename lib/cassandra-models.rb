@@ -38,15 +38,17 @@ module Cassandra
       end
 
       def validate_data data
+        data = self.class.select_valid_fields(data)
+        data = Hash[data.map{|k, v| [k, self.class.fix_type(k, v)]}]
+
         self.methods.select{|method| method =~ /^validate_field_/}.each do |method|
           self.send method, data
         end
 
         return data
       end
-
+      
       class << self
-
         def cfname name
           @cfname = name.to_s
         end
@@ -116,16 +118,33 @@ module Cassandra
             raise InvalidRequest.new
           end
         end
+        
+        def fix_type(key, value)
+          return if value.nil?
+      
+          type = @fields[key.to_sym][:type]
+          
+          case type
+          when :date
+            value.kind_of?(String) ? Time.parse(value) : value
+          else
+            value
+          end
+        end
+
+        def select_valid_fields(data)
+          data.select{|k, v| @fields.keys.include? k.to_sym}
+        end
 
         private
 
         def keys
           @fields.keys.map{|k| "'#{k.to_s}'"}.join ","
         end
-
+        
         def create(row)
           unless row.nil?
-            row_data = row.to_hash.select{|k, v| @fields.keys.include? k.to_sym}
+            row_data = select_valid_fields(row.to_hash)
             return if is_tombstone?(row_data)
 
             data = Hash[row_data.map{|k, v| [k, type_cast(k, v)]}]
@@ -169,7 +188,6 @@ module Cassandra
             value
           end
         end
-
       end # class << self
     end
   end
