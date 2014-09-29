@@ -90,7 +90,7 @@ module Cassandra
 
             begin
               res = []
-              q = "SELECT #{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE #{name.to_s}=?"
+              q = "SELECT * FROM #{@cfname} USING CONSISTENCY QUORUM WHERE #{name.to_s}=?"
               dbh.execute(q, [value]).fetch do |row|
                 assert(value, name, row) {dbh.reset!}
                 
@@ -108,7 +108,7 @@ module Cassandra
           raise InvalidRequest.new if value.nil? || value.empty?
 
           begin
-            q = "SELECT KEY,#{keys} FROM #{@cfname} USING CONSISTENCY QUORUM WHERE KEY=?"
+            q = "SELECT * FROM #{@cfname} USING CONSISTENCY QUORUM WHERE KEY=?"
             row = dbh.execute(q, [value]).fetch_row
   
             assert(value, 'KEY', row) {dbh.reset!}
