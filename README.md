@@ -7,7 +7,7 @@ A slim interaction layer with a cassandra database
 
 Use
 -------------------------------
-you will need to initialize the connection with the cassandra nodes during initialization of you application
+you will need to initialize the connection with the cassandra nodes during [initialization of you application](https://github.com/finity-ai/paper-li/blob/master/config/initializers/cassandra-models-init.rb)
 
 ``` Ruby
   # get the cassandra connections
